@@ -10,6 +10,9 @@
 #define DEVICE_NAME "tilde"
 #define CLASS_NAME "tilde"
 
+#define MSG "~"
+#define MSG_LEN 2
+
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("fauxm");
 MODULE_DESCRIPTION("~");
@@ -70,7 +73,6 @@ static void __exit tilde_exit(void)
 
 static int device_open(struct inode *inode, struct file *file)
 {
-  printk(KERN_INFO "~: device opened");
   return SUCCESS;
 }
 
@@ -85,13 +87,13 @@ static ssize_t device_read(struct file *filep,
                            loff_t *offset)
 {
   int errno = 0;
-  errno = copy_to_user(buffer, "~", 2);
+  errno = copy_to_user(buffer, MSG, MSG_LEN);
 
   if (errno != 0){
     printk(KERN_INFO "~: lol something happened: %d\n", errno);
     return -EFAULT;
   }
-  return 2;
+  return MSG_LEN;
 }
 
 static ssize_t device_write(struct file *filep,
