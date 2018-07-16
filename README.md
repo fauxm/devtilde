@@ -1,5 +1,7 @@
-# /dev/tilde
+# /dev/tilde v ~.2
 A Linux kernel module that makes a character device that writes `~`.
+It also makes a /dev/widetilde that prints `～`.
+
 
 ## Building:
 Make sure you have kernel headers and shit installed and then just `make`.
