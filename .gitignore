@@ -1,0 +1,11 @@
+.cache.mk
+.devtilde.ko.cmd
+.devtilde.mod.o.cmd
+.devtilde.o.cmd
+.tmp_versions/*
+Module.symvers
+devtilde.ko
+devtilde.mod.c
+devtilde.mod.o
+devtilde.o
+modules.order
