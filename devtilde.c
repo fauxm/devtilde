@@ -6,26 +6,42 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 
-#define SUCCESS 0
-#define TILDE_NAME "tilde"
-#define CLASS_NAME "tilde"
-
-const char msg = '~';
-#define MSG_LEN 1
-
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("fauxm");
 MODULE_DESCRIPTION("~");
-MODULE_VERSION("~.1.1");
+MODULE_VERSION("~.2.0");
 
-static int Major;
+#define SUCCESS 0
+#define FAILURE 1
+
+#define CLASS_NAME "tilde"
 static struct class* tildeC = NULL;
+
+// Normal tilde
+#define TILDEVICE_NAME "tilde"
+static int TildeMajor;
 static struct device* tildeD = NULL;
 
 static int tilde_open(struct inode*, struct file*);
 static int tilde_release(struct inode*, struct file*);
 static ssize_t tilde_read(struct file*, char*, size_t, loff_t*);
 static ssize_t tilde_write(struct file*, const char*, size_t, loff_t*);
+
+const int msg = '~';
+#define MSG_LEN 1
+
+// Wide tilde
+#define WTILDEVICE_NAME "widetilde"
+static int WTildeMajor;
+static struct device* wtildeD = NULL;
+
+#define wtilde_open tilde_open
+#define wtilde_release tilde_release
+static ssize_t wtilde_read(struct file*, char*, size_t, loff_t*);
+#define wtilde_write tilde_write
+
+const int widemsg = 0x9EBDEF;
+#define WIDEMSG_LEN 3
 
 static struct file_operations tilde_fops = {
   .read = tilde_read,
@@ -34,40 +50,76 @@ static struct file_operations tilde_fops = {
   .release = tilde_release
 };
 
-static int __init tilde_init(void)
-{
-  Major = register_chrdev(0, TILDE_NAME, &tilde_fops);
+static struct file_operations wtilde_fops = {
+  .read = wtilde_read,
+  .write = wtilde_write,
+  .open = wtilde_open,
+  .release = wtilde_release
+};
 
-  if (Major < 0 ) {
-    printk(KERN_ALERT "~: Registering char device failed with %d\n", Major);
-    return Major;
-  }
+// Helper function for dev_init() to call; registers and creates the devices.
+static int reg_and_create_devices(void)
+{
+  TildeMajor = register_chrdev(0, TILDEVICE_NAME, &tilde_fops);
+  WTildeMajor = register_chrdev(0, WTILDEVICE_NAME, &wtilde_fops);
 
   tildeC = class_create(THIS_MODULE, CLASS_NAME);
   if(IS_ERR(tildeC)) {
-    unregister_chrdev(Major, TILDE_NAME);
+    unregister_chrdev(TildeMajor, TILDEVICE_NAME);
+    unregister_chrdev(WTildeMajor, WTILDEVICE_NAME);
     printk(KERN_ALERT "~: Failed to register device class\n");
     return PTR_ERR(tildeC);
   }
 
-  tildeD = device_create(tildeC, NULL, MKDEV(Major, 0), NULL, TILDE_NAME);
-  if(IS_ERR(tildeD)) {
-    class_destroy(tildeC);
-    unregister_chrdev(Major, TILDE_NAME);
-    printk(KERN_ALERT "~: Failed to create device.\n");
-    return PTR_ERR(tildeD);
+  if(TildeMajor < 0) {
+    printk(KERN_ALERT "~: Registering %s failed with %d\n", TILDEVICE_NAME, TildeMajor);
+  } else {
+    tildeD = device_create(tildeC, NULL, MKDEV(TildeMajor, 0), NULL, TILDEVICE_NAME);
+    if(IS_ERR(tildeD)) {
+      class_destroy(tildeC);
+      unregister_chrdev(TildeMajor, TILDEVICE_NAME);
+      printk(KERN_ALERT "~: Failed to create %s. Aborting.\n", TILDEVICE_NAME);
+      return PTR_ERR(tildeD);
+    }
   }
 
-  printk(KERN_INFO "~: Module loaded successfully~!\n");
+  if(WTildeMajor < 0) {
+    printk(KERN_ALERT "~: Registering %s failed with %d\n", WTILDEVICE_NAME, WTildeMajor);
+  } else {
+    wtildeD = device_create(tildeC, NULL, MKDEV(WTildeMajor, 0), NULL, WTILDEVICE_NAME);
+    if(IS_ERR(wtildeD)) {
+      class_destroy(tildeC);
+      unregister_chrdev(WTildeMajor, WTILDEVICE_NAME);
+      printk(KERN_ALERT "~: Failed to create %s. Aborting.\n", WTILDEVICE_NAME);
+      return PTR_ERR(wtildeD);
+    }
+  }
+
   return SUCCESS;
 }
 
-static void __exit tilde_exit(void)
+static int __init dev_init(void)
 {
-  device_destroy(tildeC, MKDEV(Major, 0));
+  if(reg_and_create_devices() == 0) {
+    printk(KERN_INFO "~: Module initiallized successfully~!\n");
+    return SUCCESS;
+  } else {
+    printk(KERN_ALERT "~: Oopsie daisy, we made a fucky-wucky~!\n");
+    return FAILURE;
+  }
+}
+
+static void __exit dev_exit(void)
+{
+  device_destroy(tildeC, MKDEV(TildeMajor, 0));
+  device_destroy(tildeC, MKDEV(WTildeMajor, 0));
+
   class_unregister(tildeC);
   class_destroy(tildeC);
-  unregister_chrdev(Major, TILDE_NAME);
+
+  unregister_chrdev(TildeMajor, TILDEVICE_NAME);
+  unregister_chrdev(WTildeMajor, WTILDEVICE_NAME);
+
   printk(KERN_INFO "~: Module cleanup successful~!\n");
 }
 
@@ -96,8 +148,22 @@ static ssize_t tilde_read(struct file *filep,
   return MSG_LEN;
 }
 
+static ssize_t wtilde_read(struct file *filep,
+                          char *buf,
+                          size_t len,
+                          loff_t *off)
+{
+  int errno = 0;
+  errno = copy_to_user(buf, &widemsg, WIDEMSG_LEN);
+
+  if (errno != 0){
+    printk(KERN_INFO "~: lol something happened: %d\n", errno);
+    return -EFAULT;
+  }
+  return WIDEMSG_LEN;
+}
 static ssize_t tilde_write(struct file *filep,
-                            const char *buff,
+                            const char *buf,
                             size_t len,
                             loff_t *off)
 {
@@ -105,5 +171,5 @@ static ssize_t tilde_write(struct file *filep,
   return -EINVAL;
 }
 
-module_init(tilde_init);
-module_exit(tilde_exit);
+module_init(dev_init);
+module_exit(dev_exit);
