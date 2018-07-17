@@ -19,6 +19,8 @@ static struct class* tildeC = NULL;
 
 // Normal tilde
 #define TILDEVICE_NAME "tilde"
+#define MSG_LEN 1
+const static char msg = '~';
 static int TildeMajor;
 static struct device* tildeD = NULL;
 
@@ -27,11 +29,10 @@ static int tilde_release(struct inode*, struct file*);
 static ssize_t tilde_read(struct file*, char*, size_t, loff_t*);
 static ssize_t tilde_write(struct file*, const char*, size_t, loff_t*);
 
-const int msg = '~';
-#define MSG_LEN 1
-
 // Wide tilde
 #define WTILDEVICE_NAME "widetilde"
+#define WIDEMSG_LEN 3
+const static int widemsg = 0x9EBDEF;
 static int WTildeMajor;
 static struct device* wtildeD = NULL;
 
@@ -39,9 +40,6 @@ static struct device* wtildeD = NULL;
 #define wtilde_release tilde_release
 static ssize_t wtilde_read(struct file*, char*, size_t, loff_t*);
 #define wtilde_write tilde_write
-
-const int widemsg = 0x9EBDEF;
-#define WIDEMSG_LEN 3
 
 static struct file_operations tilde_fops = {
   .read = tilde_read,
