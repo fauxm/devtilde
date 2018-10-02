@@ -41,6 +41,21 @@ static struct device* wtildeD = NULL;
 static ssize_t wtilde_read(struct file*, char*, size_t, loff_t*);
 #define wtilde_write tilde_write
 
+// Big tilde
+#define BTILDEVICE_NAME "bigtilde"
+#define BIGMSG_LEN 91
+const static char* bigmsg = "      ~~~~\n"
+                            "  ~~~~    ~~~~         ~~~~\n"
+                            "~~~~         ~~~~    ~~~~\n"
+                            "                 ~~~~\n\n\n\n";
+static int BTildeMajor;
+static struct device* btildeD = NULL;
+
+#define btilde_open tilde_open
+#define btilde_release tilde_release
+static ssize_t btilde_read(struct file*, char*, size_t, loff_t*);
+#define btilde_write tilde_write
+
 static struct file_operations tilde_fops = {
   .read = tilde_read,
   .write = tilde_write,
@@ -55,16 +70,26 @@ static struct file_operations wtilde_fops = {
   .release = wtilde_release
 };
 
+static struct file_operations btilde_fops = {
+    .read = btilde_read,
+    .write = btilde_write,
+    .open = btilde_open,
+    .release = btilde_release
+};
+
+
 // Helper function for dev_init() to call; registers and creates the devices.
 static int reg_and_create_devices(void)
 {
   TildeMajor = register_chrdev(0, TILDEVICE_NAME, &tilde_fops);
   WTildeMajor = register_chrdev(0, WTILDEVICE_NAME, &wtilde_fops);
+  BTildeMajor = register_chrdev(0, BTILDEVICE_NAME, &btilde_fops);
 
   tildeC = class_create(THIS_MODULE, CLASS_NAME);
   if(IS_ERR(tildeC)) {
     unregister_chrdev(TildeMajor, TILDEVICE_NAME);
     unregister_chrdev(WTildeMajor, WTILDEVICE_NAME);
+    unregister_chrdev(BTildeMajor, BTILDEVICE_NAME);
     printk(KERN_ALERT "~: Failed to register device class\n");
     return PTR_ERR(tildeC);
   }
@@ -92,6 +117,17 @@ static int reg_and_create_devices(void)
       return PTR_ERR(wtildeD);
     }
   }
+  if(BTildeMajor < 0) {
+    printk(KERN_ALERT "~: Registering %s failed with %d\n", BTILDEVICE_NAME, BTildeMajor);
+  } else {
+    btildeD = device_create(tildeC, NULL, MKDEV(BTildeMajor, 0), NULL, BTILDEVICE_NAME);
+    if(IS_ERR(btildeD)) {
+      class_destroy(tildeC);
+      unregister_chrdev(BTildeMajor, BTILDEVICE_NAME);
+      printk(KERN_ALERT "~: Failed to create %s. Aborting.\n", BTILDEVICE_NAME);
+      return PTR_ERR(btildeD);
+    }
+  }
 
   return SUCCESS;
 }
@@ -111,12 +147,14 @@ static void __exit dev_exit(void)
 {
   device_destroy(tildeC, MKDEV(TildeMajor, 0));
   device_destroy(tildeC, MKDEV(WTildeMajor, 0));
+  device_destroy(tildeC, MKDEV(BTildeMajor, 0));
 
   class_unregister(tildeC);
   class_destroy(tildeC);
 
   unregister_chrdev(TildeMajor, TILDEVICE_NAME);
   unregister_chrdev(WTildeMajor, WTILDEVICE_NAME);
+  unregister_chrdev(BTildeMajor, BTILDEVICE_NAME);
 
   printk(KERN_INFO "~: Module cleanup successful~!\n");
 }
@@ -159,6 +197,20 @@ static ssize_t wtilde_read(struct file *filep,
     return -EFAULT;
   }
   return WIDEMSG_LEN;
+}
+static ssize_t btilde_read(struct file *filep,
+                           char *buf,
+                           size_t len,
+                           loff_t *off)
+{
+  int errno = 0;
+  errno = copy_to_user(buf, bigmsg, BIGMSG_LEN);
+
+  if (errno != 0){
+    printk(KERN_INFO "~: lol something happened: %d\n", errno);
+    return -EFAULT;
+  }
+  return BIGMSG_LEN;
 }
 static ssize_t tilde_write(struct file *filep,
                             const char *buf,
