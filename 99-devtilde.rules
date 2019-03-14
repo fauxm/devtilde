@@ -1,1 +1,3 @@
 KERNEL=="tilde", MODE="0444"
+KERNEL=="widetilde", MODE="0444"
+KERNEL=="bigtilde", MODE="0444"
